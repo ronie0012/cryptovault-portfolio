@@ -178,7 +178,7 @@ const NavBar: React.FC<NavBarProps> = ({
               <div className="flex-shrink-0">
                 <button
                   onClick={() => handleRouteChange('landing')}
-                  className="text-xl font-heading font-bold text-primary hover:text-primary/80 transition-colors"
+                  className="text-xl font-heading font-bold bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent hover:opacity-90 transition-all duration-300"
                 >
                   CryptoVault
                 </button>
@@ -191,10 +191,10 @@ const NavBar: React.FC<NavBarProps> = ({
                     <motion.button
                       key={item.name}
                       onClick={() => handleRouteChange(item.route)}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-300 ${
                         activeRoute === item.route 
-                          ? 'text-primary bg-primary/10' 
-                          : 'text-muted-foreground hover:text-foreground'
+                          ? 'bg-gradient-to-r from-indigo-500/20 via-fuchsia-500/20 to-emerald-500/20 text-foreground shadow-sm' 
+                          : 'text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-indigo-500/10 hover:via-fuchsia-500/10 hover:to-emerald-500/10'
                       }`}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -497,8 +497,8 @@ const NavBar: React.FC<NavBarProps> = ({
                       onClick={() => handleRouteChange(item.route)}
                       className={`flex items-center space-x-3 w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors ${
                         activeRoute === item.route 
-                          ? 'text-primary bg-primary/10' 
-                          : 'text-muted-foreground hover:text-foreground'
+                          ? 'bg-gradient-to-r from-indigo-500/20 via-fuchsia-500/20 to-emerald-500/20 text-foreground' 
+                          : 'text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-indigo-500/10 hover:via-fuchsia-500/10 hover:to-emerald-500/10'
                       }`}
                     >
                       <Icon className="h-5 w-5" />

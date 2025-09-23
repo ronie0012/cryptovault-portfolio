@@ -138,6 +138,21 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Vibrant animated background */}
+      <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+        <motion.div
+          aria-hidden
+          className="absolute -top-32 -left-24 h-80 w-80 rounded-full blur-3xl bg-gradient-to-br from-indigo-500/20 via-fuchsia-500/20 to-emerald-500/20"
+          animate={{ x: [0, 20, -10, 0], y: [0, 10, -15, 0], rotate: [0, 15, -10, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute -bottom-32 -right-24 h-96 w-96 rounded-full blur-3xl bg-gradient-to-tr from-emerald-500/20 via-sky-500/20 to-violet-500/20"
+          animate={{ x: [0, -15, 10, 0], y: [0, -10, 15, 0], rotate: [0, -10, 8, 0] }}
+          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
       {/* Global Theme and Auth Context */}
       <div className="theme-provider" data-theme={theme}>
         {/* Fixed Navigation Bar */}
@@ -158,7 +173,7 @@ export default function Home() {
         />
 
         {/* Main Content Container */}
-        <main className="pt-16">
+        <main className="relative z-10 pt-16">
           <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <AnimatePresence mode="wait">
               <motion.div
