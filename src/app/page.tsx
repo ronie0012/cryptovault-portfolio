@@ -7,7 +7,7 @@ import { Toaster } from 'sonner';
 import NavBar from '@/components/NavBar';
 import Landing from '@/components/Landing';
 import Auth from '@/components/Auth';
-import Dashboard from '@/components/Dashboard';
+import ImprovedDashboard from '@/components/ImprovedDashboard';
 import Watchlist from '@/components/Watchlist';
 import Analytics from '@/components/Analytics';
 import News from '@/components/News';
@@ -120,17 +120,17 @@ export default function Home() {
       case 'landing':
         return <Landing {...sectionProps} />;
       case 'dashboard':
-        return <Dashboard {...sectionProps} />;
+        return <ImprovedDashboard {...sectionProps} />;
       case 'watchlist':
-        return <Watchlist {...sectionProps} />;
+        return <Watchlist />;
       case 'analytics':
         return <Analytics {...sectionProps} />;
       case 'news':
-        return <News {...sectionProps} />;
+        return <News />;
       case 'alerts':
-        return <Alerts {...sectionProps} />;
+        return <Alerts />;
       case 'settings':
-        return <Settings {...sectionProps} />;
+        return <Settings />;
       default:
         return <Landing {...sectionProps} />;
     }

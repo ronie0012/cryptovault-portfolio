@@ -1,30 +1,50 @@
-"use client";
+'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Shield, 
+  PieChart, 
+  RefreshCw, 
+  Eye, 
+  EyeOff,
+  AlertTriangle,
+  BarChart3,
+  Target
+} from 'lucide-react';
+// Authentication is handled via props, not a hook
+import { cryptoAPI, CryptoAsset } from '@/lib/crypto-api';
+import { loadPortfolioData, UserPortfolioAsset } from '@/utils/portfolioStorage';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  ChartLine,
-  ChartArea,
-  ChartBarIncreasing,
-  ChartPie,
-  ChartColumn,
-  ChartSpline,
-} from "lucide-react";
+  calculateDiversificationScore,
+  assessRiskLevel,
+  calculateAdvancedMetrics,
+  identifyPerformers,
+  validatePortfolioData,
+  type EnrichedAsset,
+  type AllocationData,
+  type AdvancedMetrics,
+  type PerformersResult,
+  type RiskLevel
+} from '@/lib/analytics-engine';
+
+interface AnalyticsData {
+  totalValue: number;
+  totalChange24h: number;
+  diversificationScore: number;
+  riskLevel: RiskLevel;
+  allocation: AllocationData[];
+  performers: PerformersResult;
+  advancedMetrics: AdvancedMetrics;
+  assets: EnrichedAsset[];
+}
 
 interface User {
   id: string;
@@ -33,695 +53,502 @@ interface User {
   avatar?: string;
 }
 
+type Route = 'landing' | 'dashboard' | 'watchlist' | 'analytics' | 'news' | 'alerts' | 'settings';
+
 interface AnalyticsProps {
   user?: User | null;
   isAuthenticated?: boolean;
-  onRouteChange?: (route: string) => void;
+  onRouteChange?: (route: Route) => void;
   onAuthModalOpen?: () => void;
 }
 
-interface TimeRange {
-  value: string;
-  label: string;
-}
-
-interface ChartDataPoint {
-  timestamp: number;
-  value: number;
-  volume?: number;
-}
-
-interface Asset {
-  id: string;
-  symbol: string;
-  name: string;
-  allocation: number;
-  value: number;
-  change24h: number;
-}
-
-interface RiskMetric {
-  name: string;
-  value: string | number;
-  description: string;
-  severity?: "low" | "medium" | "high";
-}
-
-interface Anomaly {
-  id: string;
-  timestamp: number;
-  type: string;
-  severity: "low" | "medium" | "high";
-  description: string;
-  evidence: string[];
-}
-
-interface ForecastData {
-  timestamp: number;
-  predicted: number;
-  confidence: {
-    lower: number;
-    upper: number;
-  };
-}
-
-interface AIReport {
-  summary: string;
-  actionItems: string[];
-  riskFlags: string[];
-  generatedAt: number;
-}
-
-const timeRanges: TimeRange[] = [
-  { value: "1D", label: "1 Day" },
-  { value: "7D", label: "7 Days" },
-  { value: "30D", label: "30 Days" },
-  { value: "90D", label: "90 Days" },
-  { value: "1Y", label: "1 Year" },
-  { value: "ALL", label: "All Time" },
-];
-
-const mockAssets: Asset[] = [
-  {
-    id: "btc",
-    symbol: "BTC",
-    name: "Bitcoin",
-    allocation: 45.2,
-    value: 125000,
-    change24h: 2.3,
-  },
-  {
-    id: "eth",
-    symbol: "ETH",
-    name: "Ethereum",
-    allocation: 30.1,
-    value: 85000,
-    change24h: -1.2,
-  },
-  {
-    id: "sol",
-    symbol: "SOL",
-    name: "Solana",
-    allocation: 15.5,
-    value: 42000,
-    change24h: 4.7,
-  },
-  {
-    id: "ada",
-    symbol: "ADA",
-    name: "Cardano",
-    allocation: 9.2,
-    value: 18000,
-    change24h: -0.8,
-  },
-];
-
-const mockRiskMetrics: RiskMetric[] = [
-  {
-    name: "Portfolio Volatility",
-    value: "15.2%",
-    description: "Standard deviation of returns over the selected period",
-    severity: "medium",
-  },
-  {
-    name: "Sharpe Ratio",
-    value: "1.85",
-    description: "Risk-adjusted return measure (>1 is good, >2 is excellent)",
-    severity: "low",
-  },
-  {
-    name: "Max Drawdown",
-    value: "-12.4%",
-    description: "Largest peak-to-trough decline in portfolio value",
-    severity: "medium",
-  },
-  {
-    name: "Beta",
-    value: "0.92",
-    description: "Portfolio sensitivity to market movements",
-    severity: "low",
-  },
-];
-
-const mockAnomalies: Anomaly[] = [
-  {
-    id: "1",
-    timestamp: Date.now() - 86400000,
-    type: "Volume Spike",
-    severity: "medium",
-    description: "Unusual trading volume detected in BTC position",
-    evidence: ["24h volume: 450% above average", "Price correlation breakdown"],
-  },
-  {
-    id: "2",
-    timestamp: Date.now() - 172800000,
-    type: "Price Deviation",
-    severity: "high",
-    description: "Significant price deviation from predicted range",
-    evidence: ["Price moved 8.5% beyond 95% confidence interval", "Market news correlation"],
-  },
-];
-
 export default function Analytics({ user, isAuthenticated, onRouteChange, onAuthModalOpen }: AnalyticsProps) {
-  // Redirect to auth if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated) {
-      onAuthModalOpen?.();
-      return;
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showValues, setShowValues] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchPortfolioAnalytics = async () => {
+    try {
+      setError(null);
+      
+      // Get user portfolio data
+      if (!user?.id) {
+        setAnalyticsData(null);
+        return;
+      }
+
+      const userAssets = loadPortfolioData(user.id);
+      if (userAssets.length === 0) {
+        setAnalyticsData(null);
+        return;
+      }
+
+      // Collect all unique crypto IDs
+      const cryptoIds = Array.from(new Set(
+        userAssets.map(asset => asset.id)
+      ));
+
+      // Fetch current market data
+      const marketData = await cryptoAPI.getCryptoData(cryptoIds);
+      
+      // Enrich assets with holding quantities
+      const enrichedAssets: EnrichedAsset[] = [];
+      let totalValue = 0;
+      let totalChange24h = 0;
+
+      userAssets.forEach(userAsset => {
+        const marketAsset = marketData.find(asset => asset.id === userAsset.id);
+        if (marketAsset) {
+          const enrichedAsset: EnrichedAsset = {
+            ...marketAsset,
+            holding_quantity: userAsset.holding_quantity
+          };
+          enrichedAssets.push(enrichedAsset);
+          
+          const value = marketAsset.current_price * userAsset.holding_quantity;
+          totalValue += value;
+          totalChange24h += value * ((marketAsset.price_change_percentage_24h || 0) / 100);
+        }
+      });
+
+      // Validate portfolio data
+      const validation = validatePortfolioData(enrichedAssets);
+      if (!validation.isValid) {
+        throw new Error(`Portfolio validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Calculate allocation data
+      const allocation: AllocationData[] = enrichedAssets.map(asset => {
+        const value = asset.current_price * asset.holding_quantity;
+        const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
+        
+        return {
+          asset,
+          percentage,
+          value
+        };
+      });
+
+      // Calculate analytics
+      const diversificationScore = calculateDiversificationScore(allocation);
+      const riskLevel = assessRiskLevel(allocation, enrichedAssets);
+      const performers = identifyPerformers(enrichedAssets, totalValue);
+      const advancedMetrics = calculateAdvancedMetrics(enrichedAssets);
+
+      setAnalyticsData({
+        totalValue,
+        totalChange24h,
+        diversificationScore,
+        riskLevel,
+        allocation,
+        performers,
+        advancedMetrics,
+        assets: enrichedAssets
+      });
+
+    } catch (err) {
+      console.error('Analytics fetch error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  }, [isAuthenticated, onAuthModalOpen]);
+  };
 
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("30D");
-  const [selectedAssets, setSelectedAssets] = useState<string[]>(["btc"]);
-  const [forecastType, setForecastType] = useState<"server" | "client">("server");
-  const [isGeneratingForecast, setIsGeneratingForecast] = useState(false);
-  const [forecastData, setForecastData] = useState<ForecastData[]>([]);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [reportProgress, setReportProgress] = useState(0);
-  const [aiReport, setAiReport] = useState<AIReport | null>(null);
-  const [showAnomalies, setShowAnomalies] = useState(true);
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareAssets, setCompareAssets] = useState<string[]>([]);
-  const [activeChart, setActiveChart] = useState("portfolio");
-  const [hoveredAnomaly, setHoveredAnomaly] = useState<string | null>(null);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchPortfolioAnalytics();
+  };
 
-  // If not authenticated, show auth prompt
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchPortfolioAnalytics();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  // Authentication guard
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold mb-2">Authentication Required</h3>
-              <p className="text-muted-foreground mb-4">Please sign in to access analytics</p>
-              <Button onClick={onAuthModalOpen}>
-                Sign In
-              </Button>
-            </div>
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader className="text-center">
+            <CardTitle>Sign In Required</CardTitle>
+            <CardDescription>
+              Please sign in to view your portfolio analytics
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-32" />
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+        
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Empty portfolio state
+  if (!analyticsData) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">Portfolio Analytics</h1>
+            <p className="text-muted-foreground">
+              Comprehensive insights into your cryptocurrency investments
+            </p>
+          </div>
+        </div>
+        
+        <Card className="max-w-md mx-auto">
+          <CardHeader className="text-center">
+            <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle>No Portfolio Data</CardTitle>
+            <CardDescription>
+              Add some cryptocurrencies to your portfolio to see detailed analytics and insights
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button onClick={() => onRouteChange?.('dashboard')}>
+              Go to Dashboard
+            </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Generate mock chart data based on time range
-  const chartData = useMemo(() => {
-    const points = selectedTimeRange === "1D" ? 24 : 
-                  selectedTimeRange === "7D" ? 168 :
-                  selectedTimeRange === "30D" ? 720 :
-                  selectedTimeRange === "90D" ? 2160 :
-                  selectedTimeRange === "1Y" ? 8760 : 10000;
-    
-    return Array.from({ length: points }, (_, i) => ({
-      timestamp: Date.now() - (points - i) * 3600000,
-      value: 250000 + Math.random() * 50000 + Math.sin(i / 10) * 20000,
-      volume: Math.random() * 1000000,
-    }));
-  }, [selectedTimeRange]);
-
-  const handleRunForecast = async () => {
-    setIsGeneratingForecast(true);
-    try {
-      if (forecastType === "server") {
-        // Mock server-side ML forecast
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        const mockForecast = Array.from({ length: 30 }, (_, i) => ({
-          timestamp: Date.now() + i * 86400000,
-          predicted: 260000 + Math.random() * 20000,
-          confidence: {
-            lower: 240000 + Math.random() * 15000,
-            upper: 280000 + Math.random() * 15000,
-          },
-        }));
-        setForecastData(mockForecast);
-      } else {
-        // Mock client-side TensorFlow.js forecast
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const mockForecast = Array.from({ length: 7 }, (_, i) => ({
-          timestamp: Date.now() + i * 86400000,
-          predicted: 255000 + i * 2000 + Math.random() * 10000,
-          confidence: {
-            lower: 245000 + i * 1500,
-            upper: 265000 + i * 2500,
-          },
-        }));
-        setForecastData(mockForecast);
-      }
-    } finally {
-      setIsGeneratingForecast(false);
-    }
-  };
-
-  const handleGenerateReport = async () => {
-    setIsGeneratingReport(true);
-    setReportProgress(0);
-    
-    try {
-      // Simulate streaming progress
-      for (let i = 0; i <= 100; i += 10) {
-        setReportProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      const mockReport: AIReport = {
-        summary: "Your portfolio shows strong performance with moderate risk exposure. The current allocation demonstrates good diversification across major cryptocurrency assets.",
-        actionItems: [
-          "Consider rebalancing to maintain target allocations",
-          "Monitor the elevated volatility in SOL position",
-          "Review correlation patterns between BTC and ETH holdings",
-        ],
-        riskFlags: [
-          "High correlation detected between BTC and ETH (0.85)",
-          "Portfolio concentration risk in top 2 assets (75.3%)",
-        ],
-        generatedAt: Date.now(),
-      };
-      
-      setAiReport(mockReport);
-    } finally {
-      setIsGeneratingReport(false);
-      setReportProgress(0);
-    }
-  };
-
-  const handleExportCSV = () => {
-    const csvData = mockRiskMetrics.map(metric => 
-      `${metric.name},${metric.value},${metric.description}`
-    ).join('\n');
-    
-    const blob = new Blob([`Metric,Value,Description\n${csvData}`], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `portfolio-metrics-${selectedTimeRange}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const correlationMatrix = useMemo(() => {
-    if (!compareMode || compareAssets.length < 2) return [];
-    
-    // Mock correlation calculation
-    const assets = compareAssets.slice(0, 3);
-    return assets.map((asset1, i) => 
-      assets.map((asset2, j) => ({
-        asset1,
-        asset2,
-        correlation: i === j ? 1 : Math.random() * 0.8 + 0.2,
-      }))
+  // Error state
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader className="text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+            <CardTitle>Analytics Error</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
-  }, [compareMode, compareAssets]);
+  }
+
+  const formatCurrency = (value: number) => {
+    if (!showValues) return '••••••';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+
+  const formatPercentage = (value: number) => {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const getRiskColor = (risk: RiskLevel) => {
+    switch (risk) {
+      case 'Low': return 'text-green-600 bg-green-100';
+      case 'Medium': return 'text-yellow-600 bg-yellow-100';
+      case 'High': return 'text-red-600 bg-red-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header Controls */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-heading font-bold">Analytics</h1>
-          <p className="text-muted-foreground mt-1">
-            Advanced portfolio analysis and AI-powered insights
+          <h1 className="text-3xl font-bold">Portfolio Analytics</h1>
+          <p className="text-muted-foreground">
+            Comprehensive insights into your cryptocurrency investments
           </p>
         </div>
-        
-        <div className="flex flex-wrap gap-3 items-center">
-          <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {timeRanges.map((range) => (
-                <SelectItem key={range.value} value={range.value}>
-                  {range.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <div className="flex items-center space-x-2">
-            <Switch
-              checked={compareMode}
-              onCheckedChange={setCompareMode}
-            />
-            <span className="text-sm">Compare Mode</span>
-          </div>
-          
-          <Button variant="outline" onClick={handleExportCSV}>
-            Export CSV
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowValues(!showValues)}
+          >
+            {showValues ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
-          
-          <Button variant="outline" onClick={() => onRouteChange?.('dashboard')}>
-            Back to Dashboard
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      {/* Main Charts Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Primary Chart */}
-        <Card className="xl:col-span-2">
+      {/* Key Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Total Portfolio Value */}
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <ChartLine className="h-5 w-5" />
-              Portfolio Performance
-            </CardTitle>
-            <Tabs value={activeChart} onValueChange={setActiveChart} className="w-auto">
-              <TabsList>
-                <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                <TabsTrigger value="volatility">Volatility</TabsTrigger>
-                <TabsTrigger value="sharpe">Sharpe</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <CardTitle className="text-sm font-medium">Total Portfolio Value</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="h-80 bg-muted/20 rounded-lg flex items-center justify-center relative">
-              <div className="text-center">
-                <ChartSpline className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Interactive chart for {selectedTimeRange} period
-                </p>
-                {forecastData.length > 0 && (
-                  <Badge variant="secondary" className="mt-2">
-                    Forecast overlay active
-                  </Badge>
-                )}
-              </div>
-              
-              {/* Anomaly Overlays */}
-              {showAnomalies && mockAnomalies.map((anomaly) => (
-                <motion.div
-                  key={anomaly.id}
-                  className={`absolute w-4 h-4 rounded-full cursor-pointer ${
-                    anomaly.severity === 'high' ? 'bg-destructive' :
-                    anomaly.severity === 'medium' ? 'bg-accent' : 'bg-primary'
-                  }`}
-                  style={{
-                    left: `${Math.random() * 80 + 10}%`,
-                    top: `${Math.random() * 60 + 20}%`,
-                  }}
-                  whileHover={{ scale: 1.2 }}
-                  onHoverStart={() => setHoveredAnomaly(anomaly.id)}
-                  onHoverEnd={() => setHoveredAnomaly(null)}
-                />
-              ))}
-            </div>
-            
-            {/* Chart Legend */}
-            <div className="flex flex-wrap gap-4 mt-4">
-              {selectedAssets.map((assetId) => {
-                const asset = mockAssets.find(a => a.id === assetId);
-                return (
-                  <div key={assetId} className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-primary rounded-full" />
-                    <span className="text-sm">{asset?.symbol}</span>
-                  </div>
-                );
-              })}
+            <div className="text-2xl font-bold">{formatCurrency(analyticsData.totalValue)}</div>
+            <div className={`text-xs flex items-center ${
+              analyticsData.totalChange24h >= 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {analyticsData.totalChange24h >= 0 ? (
+                <TrendingUp className="h-3 w-3 mr-1" />
+              ) : (
+                <TrendingDown className="h-3 w-3 mr-1" />
+              )}
+              {formatCurrency(Math.abs(analyticsData.totalChange24h))} (24h)
             </div>
           </CardContent>
         </Card>
 
-        {/* Risk Metrics Panel */}
+        {/* Best Performer */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ChartBarIncreasing className="h-5 w-5" />
-              Risk Metrics
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Best Performer</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            {mockRiskMetrics.map((metric) => (
-              <div key={metric.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{metric.name}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge 
-                      variant={metric.severity === 'high' ? 'destructive' : 
-                              metric.severity === 'medium' ? 'secondary' : 'default'}
-                      className="text-xs"
-                    >
-                      {metric.value}
-                    </Badge>
-                  </div>
+          <CardContent>
+            {analyticsData.performers.bestPerformer ? (
+              <>
+                <div className="text-2xl font-bold">
+                  {analyticsData.performers.bestPerformer.asset.symbol.toUpperCase()}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {metric.description}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Secondary Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Asset Contribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ChartColumn className="h-5 w-5" />
-              Asset Contribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 bg-muted/20 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <ChartPie className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Waterfall chart</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Correlation Heatmap */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ChartArea className="h-5 w-5" />
-              {compareMode ? "Correlation Matrix" : "Allocation Breakdown"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {compareMode && correlationMatrix.length > 0 ? (
-              <div className="space-y-2">
-                {correlationMatrix.map((row, i) => (
-                  <div key={i} className="flex gap-2">
-                    {row.map((cell, j) => (
-                      <div
-                        key={`${i}-${j}`}
-                        className="flex-1 h-12 rounded flex items-center justify-center text-xs font-medium"
-                        style={{
-                          backgroundColor: `hsl(var(--primary) / ${cell.correlation})`,
-                        }}
-                      >
-                        {cell.correlation.toFixed(2)}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+                <div className="text-xs text-green-600">
+                  {formatPercentage(analyticsData.performers.bestPerformer.percentage)}
+                </div>
+              </>
             ) : (
-              <div className="h-64 bg-muted/20 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <ChartPie className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Portfolio allocation</p>
-                </div>
-              </div>
+              <div className="text-sm text-muted-foreground">No positive performers</div>
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* AI & Advanced Features */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Predictive Modeling */}
+        {/* Risk Level */}
         <Card>
-          <CardHeader>
-            <CardTitle>Predictive Modeling</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Risk Level</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Forecast Type</p>
-                <p className="text-xs text-muted-foreground">
-                  Server: ARIMA/ML | Client: Linear regression
-                </p>
-              </div>
-              <Select value={forecastType} onValueChange={(value: "server" | "client") => setForecastType(value)}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="server">Server ML</SelectItem>
-                  <SelectItem value="client">Client JS</SelectItem>
-                </SelectContent>
-              </Select>
+          <CardContent>
+            <Badge className={getRiskColor(analyticsData.riskLevel)}>
+              {analyticsData.riskLevel} Risk
+            </Badge>
+            <div className="text-xs text-muted-foreground mt-2">
+              Based on diversification and volatility
             </div>
-            
-            <Button 
-              onClick={handleRunForecast} 
-              disabled={isGeneratingForecast}
-              className="w-full"
-            >
-              {isGeneratingForecast ? "Generating Forecast..." : "Run Forecast"}
-            </Button>
-            
-            {forecastData.length > 0 && (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium">Forecast Generated</p>
-                <p className="text-xs text-muted-foreground">
-                  {forecastData.length} data points with confidence intervals
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
-        {/* AI Reports */}
+        {/* Diversification Score */}
         <Card>
-          <CardHeader>
-            <CardTitle>AI-Generated Reports</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Diversification</CardTitle>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              onClick={handleGenerateReport}
-              disabled={isGeneratingReport}
-              className="w-full"
-            >
-              {isGeneratingReport ? "Generating Report..." : "Generate AI Report"}
-            </Button>
-            
-            {isGeneratingReport && (
-              <div className="space-y-2">
-                <Progress value={reportProgress} />
-                <p className="text-xs text-muted-foreground text-center">
-                  Analyzing portfolio data...
-                </p>
-              </div>
-            )}
-            
-            {aiReport && (
-              <div className="space-y-3">
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <p className="text-sm">{aiReport.summary}</p>
-                </div>
-                
-                {aiReport.actionItems.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Action Items:</p>
-                    <ul className="space-y-1">
-                      {aiReport.actionItems.map((item, index) => (
-                        <li key={index} className="text-xs text-muted-foreground">
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded text-center">
-                  ⚠️ Not financial advice. For informational purposes only.
-                </div>
-              </div>
-            )}
+          <CardContent>
+            <div className="text-2xl font-bold">{analyticsData.diversificationScore}/100</div>
+            <Progress value={analyticsData.diversificationScore} className="mt-2" />
           </CardContent>
         </Card>
       </div>
 
-      {/* Anomaly Detection */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Anomaly Detection</CardTitle>
-          <div className="flex items-center space-x-2">
-            <Switch
-              checked={showAnomalies}
-              onCheckedChange={setShowAnomalies}
-            />
-            <span className="text-sm">Show on Charts</span>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-64">
-            <div className="space-y-3">
-              {mockAnomalies.map((anomaly) => (
-                <motion.div
-                  key={anomaly.id}
-                  className="p-3 border rounded-lg cursor-pointer"
-                  whileHover={{ scale: 1.02 }}
-                  animate={{
-                    borderColor: hoveredAnomaly === anomaly.id ? "hsl(var(--primary))" : "hsl(var(--border))",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant={anomaly.severity === 'high' ? 'destructive' : 
-                                anomaly.severity === 'medium' ? 'secondary' : 'default'}
-                      >
-                        {anomaly.type}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(anomaly.timestamp).toLocaleString()}
-                      </span>
+      {/* Detailed Analytics Tabs */}
+      <Tabs defaultValue="allocation" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="allocation">Asset Allocation</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="risk">Risk Analysis</TabsTrigger>
+          <TabsTrigger value="insights">Advanced Insights</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="allocation" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Portfolio Allocation</CardTitle>
+              <CardDescription>
+                Distribution of assets in your portfolio by value
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {analyticsData.allocation
+                  .sort((a, b) => b.percentage - a.percentage)
+                  .map((item, index) => (
+                    <div key={item.asset.id} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="font-medium">{item.asset.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {item.asset.symbol.toUpperCase()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium">{formatCurrency(item.value)}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {item.percentage.toFixed(1)}%
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <p className="text-sm mb-2">{anomaly.description}</p>
-                  
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium">Supporting Evidence:</p>
-                    {anomaly.evidence.map((evidence, index) => (
-                      <p key={index} className="text-xs text-muted-foreground">
-                        • {evidence}
-                      </p>
-                    ))}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Compare Mode Asset Selection */}
-      <AnimatePresence>
-        {compareMode && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-          >
+        <TabsContent value="performance" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Compare Assets</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Select up to 3 assets for correlation analysis
-                </p>
+                <CardTitle className="text-green-600">Best Performer</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {mockAssets.map((asset) => (
-                    <Button
-                      key={asset.id}
-                      variant={compareAssets.includes(asset.id) ? "default" : "outline"}
-                      size="sm"
-                      disabled={!compareAssets.includes(asset.id) && compareAssets.length >= 3}
-                      onClick={() => {
-                        setCompareAssets(prev => 
-                          prev.includes(asset.id) 
-                            ? prev.filter(id => id !== asset.id)
-                            : [...prev, asset.id]
-                        );
-                      }}
-                    >
-                      {asset.symbol}
-                    </Button>
-                  ))}
-                </div>
+                {analyticsData.performers.bestPerformer ? (
+                  <div className="space-y-2">
+                    <div className="font-medium text-lg">
+                      {analyticsData.performers.bestPerformer.asset.name}
+                    </div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatPercentage(analyticsData.performers.bestPerformer.percentage)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Gain: {formatCurrency(analyticsData.performers.bestPerformer.gainLoss)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">No positive performers today</div>
+                )}
               </CardContent>
             </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-red-600">Worst Performer</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {analyticsData.performers.worstPerformer ? (
+                  <div className="space-y-2">
+                    <div className="font-medium text-lg">
+                      {analyticsData.performers.worstPerformer.asset.name}
+                    </div>
+                    <div className="text-2xl font-bold text-red-600">
+                      {formatPercentage(analyticsData.performers.worstPerformer.percentage)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Loss: {formatCurrency(Math.abs(analyticsData.performers.worstPerformer.gainLoss))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">No negative performers today</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="risk" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Risk Analysis</CardTitle>
+              <CardDescription>
+                Detailed risk assessment of your portfolio
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-2">{analyticsData.riskLevel}</div>
+                  <div className="text-sm text-muted-foreground">Overall Risk Level</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-2">{analyticsData.advancedMetrics.volatility}%</div>
+                  <div className="text-sm text-muted-foreground">Portfolio Volatility</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-2">{analyticsData.advancedMetrics.maxDrawdown}%</div>
+                  <div className="text-sm text-muted-foreground">Max Drawdown</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="insights" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Advanced Insights</CardTitle>
+              <CardDescription>
+                AI-powered analysis and recommendations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h4 className="font-medium mb-2">Portfolio Health</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Your portfolio shows a {analyticsData.riskLevel.toLowerCase()} risk profile with a 
+                    diversification score of {analyticsData.diversificationScore}/100. 
+                    {analyticsData.diversificationScore < 50 && 
+                      " Consider adding more assets to improve diversification."
+                    }
+                  </p>
+                </div>
+                
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <h4 className="font-medium mb-2">Performance Metrics</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Sharpe Ratio: {analyticsData.advancedMetrics.sharpeRatio} | 
+                    Volatility: {analyticsData.advancedMetrics.volatility}%
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

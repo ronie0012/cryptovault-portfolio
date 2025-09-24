@@ -11,10 +11,12 @@ interface User {
   avatar?: string;
 }
 
+type Route = 'landing' | 'dashboard' | 'watchlist' | 'analytics' | 'news' | 'alerts' | 'settings';
+
 interface LandingProps {
   user?: User | null;
   isAuthenticated?: boolean;
-  onRouteChange?: (route: string) => void;
+  onRouteChange?: (route: Route) => void;
   onAuthModalOpen?: () => void;
 }
 
@@ -61,7 +63,7 @@ const itemVariants = {
     y: 0,
     transition: {
       duration: 0.6,
-      ease: "easeOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   }
 };
@@ -73,7 +75,7 @@ const heroVariants = {
     scale: 1,
     transition: {
       duration: 0.8,
-      ease: "easeOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   }
 };
@@ -85,7 +87,7 @@ const tickerVariants = {
     x: 0,
     transition: {
       duration: 0.5,
-      ease: "easeOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   }
 };
@@ -98,7 +100,7 @@ const featureCardVariants = {
     scale: 1,
     transition: {
       duration: 0.6,
-      ease: "easeOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   },
   hover: {
@@ -106,7 +108,7 @@ const featureCardVariants = {
     scale: 1.02,
     transition: {
       duration: 0.2,
-      ease: "easeInOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   }
 };
@@ -117,7 +119,7 @@ const pulseVariants = {
     transition: {
       duration: 2,
       repeat: Infinity,
-      ease: "easeInOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   }
 };
@@ -128,7 +130,7 @@ const floatingVariants = {
     transition: {
       duration: 3,
       repeat: Infinity,
-      ease: "easeInOut"
+      ease: [0.6, -0.05, 0.01, 0.99] as any
     }
   }
 };
